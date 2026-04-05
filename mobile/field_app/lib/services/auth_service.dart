@@ -16,6 +16,20 @@ class AuthService {
     await _client.auth.signInWithOtp(phone: phoneE164);
   }
 
+  /// Whether [phoneE164] already has a Supabase auth user. Null if the RPC failed (e.g. migration not applied).
+  Future<bool?> citizenPhoneRegistered(String phoneE164) async {
+    try {
+      final result = await _client.rpc<dynamic>(
+        'citizen_phone_registered',
+        params: {'p_phone': phoneE164.trim()},
+      );
+      if (result is bool) return result;
+      return result == true;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<AuthResponse> verifyOtp({
     required String phoneE164,
     required String token,

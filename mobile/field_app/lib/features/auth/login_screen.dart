@@ -14,11 +14,14 @@ class LoginScreen extends ConsumerStatefulWidget {
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
+enum _CitizenAuthMode { signIn, register }
+
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _digits = TextEditingController();
   final _phoneFocus = FocusNode();
   bool _loading = false;
   String? _error;
+  _CitizenAuthMode _mode = _CitizenAuthMode.signIn;
 
   @override
   void initState() {
@@ -52,6 +55,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
     try {
+      final registered =
+          await ref.read(authServiceProvider).citizenPhoneRegistered(_e164);
+      if (!mounted) return;
+      if (registered != null) {
+        if (_mode == _CitizenAuthMode.signIn && !registered) {
+          setState(() {
+            _error =
+                'No account for this number. Choose “Create account” to register first.';
+            _loading = false;
+          });
+          return;
+        }
+        if (_mode == _CitizenAuthMode.register && registered) {
+          setState(() {
+            _error =
+                'This number is already registered. Choose “Sign in” to get an OTP.';
+            _loading = false;
+          });
+          return;
+        }
+      }
+
       await ref.read(authServiceProvider).signInWithOtp(phoneE164: _e164);
       if (!mounted) return;
       context.push('/otp', extra: _e164);
@@ -105,14 +130,49 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          SegmentedButton<_CitizenAuthMode>(
+                            segments: const [
+                              ButtonSegment(
+                                value: _CitizenAuthMode.signIn,
+                                label: Text('Sign in'),
+                                icon: Icon(Icons.login_rounded, size: 18),
+                              ),
+                              ButtonSegment(
+                                value: _CitizenAuthMode.register,
+                                label: Text('Create account'),
+                                icon: Icon(Icons.person_add_outlined, size: 18),
+                              ),
+                            ],
+                            selected: {_mode},
+                            onSelectionChanged: (s) {
+                              setState(() {
+                                _mode = s.first;
+                                _error = null;
+                              });
+                            },
+                          ),
+                          const SizedBox(height: 20),
                           Text(
-                            'Enter your mobile number',
+                            _mode == _CitizenAuthMode.signIn
+                                ? 'Sign in with your registered mobile'
+                                : 'Register with your mobile number',
                             style: tt.titleLarge?.copyWith(
                               fontWeight: FontWeight.w800,
                               color: cs.onSurface,
                             ),
                           ),
-                          const SizedBox(height: 28),
+                          const SizedBox(height: 8),
+                          Text(
+                            _mode == _CitizenAuthMode.signIn
+                                ? 'We send an OTP only if this number already has an account.'
+                                : 'We’ll send an OTP, then ask for your name to finish setup.',
+                            style: tt.bodyMedium?.copyWith(
+                              color: cs.onSurfaceVariant.withValues(alpha: 0.88),
+                              fontWeight: FontWeight.w500,
+                              height: 1.35,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
                           Stack(
                             clipBehavior: Clip.none,
                             children: [
@@ -214,7 +274,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             width: double.infinity,
                             child: GradientPrimaryButton(
                               onPressed: _loading ? null : _sendOtp,
-                              label: 'Send OTP',
+                              label: _mode == _CitizenAuthMode.signIn
+                                  ? 'Send OTP to sign in'
+                                  : 'Send OTP to register',
                               icon: Icons.arrow_forward_rounded,
                               loading: _loading,
                             ),

@@ -39,6 +39,10 @@ class Ticket {
     this.estimatedCost,
     this.jobOrderRef,
     this.billId,
+    this.epdoScore,
+    this.resolvedAt,
+    this.aiConfidence,
+    this.aiSeverityIndex,
   });
 
   final String id;
@@ -78,6 +82,10 @@ class Ticket {
   final double? estimatedCost;
   final String? jobOrderRef;
   final String? billId;
+  final double? epdoScore;
+  final String? resolvedAt;
+  final double? aiConfidence;
+  final double? aiSeverityIndex;
 
   String? get primaryBeforePhoto =>
       photoBefore.isNotEmpty ? photoBefore.first : null;
@@ -127,6 +135,10 @@ class Ticket {
       estimatedCost: (json['estimated_cost'] as num?)?.toDouble(),
       jobOrderRef: json['job_order_ref'] as String?,
       billId: json['bill_id'] as String?,
+      epdoScore: (json['epdo_score'] as num?)?.toDouble(),
+      resolvedAt: json['resolved_at'] as String?,
+      aiConfidence: (json['ai_confidence'] as num?)?.toDouble(),
+      aiSeverityIndex: (json['ai_severity_index'] as num?)?.toDouble(),
     );
   }
 }

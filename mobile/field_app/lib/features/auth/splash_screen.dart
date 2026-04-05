@@ -45,6 +45,20 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       return;
     }
 
+    if (profile.role == 'citizen') {
+      final user = Supabase.instance.client.auth.currentUser;
+      final regDone = user?.userMetadata?['registration_complete'] == true;
+      if (!regDone) {
+        final phone = user?.phone?.trim();
+        final fallback = profile.phone?.trim();
+        final p = (phone != null && phone.isNotEmpty) ? phone : (fallback ?? '');
+        if (p.isNotEmpty) {
+          context.go('/register/details?phone=${Uri.encodeComponent(p)}');
+          return;
+        }
+      }
+    }
+
     ref.invalidate(profileProvider);
 
     if (isWebHandoffRole(profile.role)) {
@@ -54,7 +68,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
     switch (profile.role) {
       case 'citizen':
-        context.go('/citizen');
+        context.go('/citizen/home');
         break;
       case 'je':
         context.go('/je');

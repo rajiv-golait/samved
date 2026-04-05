@@ -49,8 +49,8 @@ class AuthBrandHeader extends StatelessWidget {
           Column(
             children: [
               Container(
-                width: compactLogo ? 64 : 80,
-                height: compactLogo ? 64 : 80,
+                width: compactLogo ? 72 : 88,
+                height: compactLogo ? 72 : 88,
                 decoration: BoxDecoration(
                   color: Colors.white,
                   shape: BoxShape.circle,
@@ -66,23 +66,14 @@ class AuthBrandHeader extends StatelessWidget {
                     width: 4,
                   ),
                 ),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Icon(
-                      Icons.security_rounded,
-                      size: compactLogo ? 34 : 44,
-                      color: cs.primary,
-                    ),
-                    Positioned(
-                      bottom: compactLogo ? 10 : 14,
-                      child: Icon(
-                        Icons.add_road_rounded,
-                        size: compactLogo ? 18 : 22,
-                        color: cs.onTertiaryContainer,
-                      ),
-                    ),
-                  ],
+                clipBehavior: Clip.antiAlias,
+                child: Padding(
+                  padding: EdgeInsets.all(compactLogo ? 6 : 8),
+                  child: Image.asset(
+                    'assets/images/solapur_mnc_logo.png',
+                    fit: BoxFit.contain,
+                    semanticLabel: 'Solapur Municipal Corporation emblem',
+                  ),
                 ),
               ),
               SizedBox(height: compactLogo ? 14 : 20),

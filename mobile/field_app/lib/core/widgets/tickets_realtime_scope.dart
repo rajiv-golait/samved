@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../providers/citizen_providers.dart';
 import '../../providers/providers.dart';
 import '../../providers/ticket_providers.dart';
 
@@ -38,6 +39,8 @@ class _TicketsRealtimeScopeState extends ConsumerState<TicketsRealtimeScope> {
           table: 'tickets',
           callback: (_) {
             ref.invalidate(citizenTicketsProvider);
+            ref.invalidate(citizenMapPinsProvider);
+            ref.invalidate(citizenNearbyTicketsProvider);
             ref.invalidate(jeInboxProvider);
             ref.invalidate(mukadamInboxProvider);
             ref.invalidate(contractorInboxProvider);

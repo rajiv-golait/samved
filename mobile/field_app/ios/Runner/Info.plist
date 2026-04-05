@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Road Nirman needs camera access to photograph road damage for your complaint.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Your location is used to route the complaint to the correct zone and show nearby issues.</string>
 </dict>
 </plist>

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/widgets/auth_brand_header.dart';
 import '../../core/widgets/gradient_primary_button.dart';
@@ -54,7 +55,14 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
             token: token,
           );
       if (!mounted) return;
-      context.go('/splash');
+
+      final user = Supabase.instance.client.auth.currentUser;
+      final done = user?.userMetadata?['registration_complete'] == true;
+      if (done) {
+        context.go('/splash');
+      } else {
+        context.pushReplacement('/register/details', extra: widget.phoneE164);
+      }
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {

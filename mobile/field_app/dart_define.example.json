@@ -1,5 +1,7 @@
 {
   "SUPABASE_URL": "https://YOUR_PROJECT_REF.supabase.co",
   "SUPABASE_ANON_KEY": "PASTE_ANON_PUBLIC_JWT_FROM_SUPABASE_SETTINGS_API",
-  "WEB_DASHBOARD_URL": "http://localhost:3000"
+  "WEB_DASHBOARD_URL": "http://localhost:3000",
+  "AI_SERVICE_URL": "https://ssr-ai.railway.app",
+  "AI_SERVICE_SECRET": "ssr-demo-secret-2025"
 }

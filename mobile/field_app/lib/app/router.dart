@@ -1,16 +1,24 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../features/auth/blocked_screen.dart';
+import '../features/auth/citizen_registration_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/official_login_screen.dart';
 import '../features/auth/otp_screen.dart';
 import '../features/auth/splash_screen.dart';
-import '../features/citizen/citizen_home_screen.dart';
-import '../features/citizen/citizen_ticket_detail_screen.dart';
-import '../features/citizen/report_damage_screen.dart';
+import '../features/citizen/screens/ai_detection_result_screen.dart';
+import '../features/citizen/screens/citizen_home_screen.dart';
+import '../features/citizen/screens/complaint_tracker_screen.dart';
+import '../features/citizen/screens/my_complaints_screen.dart';
+import '../features/citizen/screens/profile_screen.dart';
+import '../features/citizen/screens/report_damage_screen.dart';
+import '../features/citizen/screens/submission_confirmation_screen.dart';
 import '../features/contractor/contractor_home_screen.dart';
 import '../features/contractor/contractor_job_screen.dart';
 import '../features/handoff/web_handoff_screen.dart';
@@ -76,6 +84,22 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
+        path: '/register/details',
+        builder: (context, state) {
+          final fromExtra = state.extra as String?;
+          final fromQuery = state.uri.queryParameters['phone'];
+          final phone = (fromExtra != null && fromExtra.isNotEmpty)
+              ? fromExtra
+              : (fromQuery ?? '');
+          if (phone.isEmpty) {
+            return const Scaffold(
+              body: Center(child: Text('Missing phone — start from login.')),
+            );
+          }
+          return CitizenRegistrationScreen(phoneE164: phone);
+        },
+      ),
+      GoRoute(
         path: '/blocked',
         builder: (context, state) =>
             BlockedScreen(message: state.extra as String?),
@@ -86,19 +110,56 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/citizen',
+        redirect: (_, __) => '/citizen/home',
+      ),
+      GoRoute(
+        path: '/citizen/home',
         builder: (_, __) => const CitizenHomeScreen(),
-        routes: [
-          GoRoute(
-            path: 'report',
-            builder: (_, __) => const ReportDamageScreen(),
-          ),
-          GoRoute(
-            path: 'tickets/:ticketId',
-            builder: (_, state) => CitizenTicketDetailScreen(
-              ticketId: state.pathParameters['ticketId']!,
-            ),
-          ),
-        ],
+      ),
+      GoRoute(
+        path: '/citizen/report',
+        builder: (_, __) => const ReportDamageScreen(),
+      ),
+      GoRoute(
+        path: '/citizen/ai-result',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          if (extra == null) {
+            return const Scaffold(body: Center(child: Text('Missing capture data.')));
+          }
+          return AIDetectionResultScreen(
+            imageFile: extra['imageFile'] as File,
+            gpsPosition: extra['gpsPosition'] as Position,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/citizen/confirmation',
+        builder: (context, state) {
+          final ticket = state.extra as Map<String, dynamic>?;
+          if (ticket == null) {
+            return const Scaffold(body: Center(child: Text('Missing ticket.')));
+          }
+          return SubmissionConfirmationScreen(ticket: ticket);
+        },
+      ),
+      GoRoute(
+        path: '/citizen/my-complaints',
+        builder: (_, __) => const MyComplaintsScreen(),
+      ),
+      GoRoute(
+        path: '/citizen/tracker',
+        builder: (context, state) {
+          final ticketId = state.uri.queryParameters['ticketId'];
+          if (ticketId == null || ticketId.isEmpty) {
+            return const Scaffold(body: Center(child: Text('Missing ticket id.')));
+          }
+          return ComplaintTrackerScreen(ticketId: ticketId);
+        },
+      ),
+      GoRoute(
+        path: '/citizen/profile',
+        builder: (_, __) => const ProfileScreen(),
       ),
       GoRoute(
         path: '/je',
