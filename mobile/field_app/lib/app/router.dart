@@ -22,13 +22,19 @@ import '../features/citizen/screens/submission_confirmation_screen.dart';
 import '../features/contractor/contractor_home_screen.dart';
 import '../features/contractor/contractor_job_screen.dart';
 import '../features/handoff/web_handoff_screen.dart';
-import '../features/je/je_assign_screen.dart';
-import '../features/je/je_checkin_screen.dart';
-import '../features/je/je_home_screen.dart';
-import '../features/je/je_measure_screen.dart';
-import '../features/je/je_ticket_detail_screen.dart';
-import '../features/mukadam/mukadam_home_screen.dart';
-import '../features/mukadam/mukadam_job_screen.dart';
+import '../features/je/screens/je_executor_assignment_screen.dart';
+import '../features/je/screens/je_home_screen.dart';
+import '../features/je/screens/je_measure_estimate_screen.dart';
+import '../features/je/screens/je_profile_screen.dart';
+import '../features/je/screens/je_site_checkin_screen.dart';
+import '../features/je/screens/je_ticket_detail_screen.dart';
+import '../features/mukadam/screens/mukadam_home_screen.dart';
+import '../features/mukadam/screens/mukadam_work_order_detail_screen.dart';
+import '../features/mukadam/screens/mukadam_in_progress_screen.dart';
+import '../features/mukadam/screens/mukadam_proof_camera_screen.dart';
+import '../features/mukadam/screens/mukadam_issue_screen.dart';
+import '../features/mukadam/screens/mukadam_submission_complete_screen.dart';
+import '../features/mukadam/screens/mukadam_profile_screen.dart';
 import '../features/shared/execution_proof_screen.dart';
 import 'router_refresh.dart';
 
@@ -163,58 +169,96 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/je',
+        redirect: (_, __) => '/je/home',
+      ),
+      GoRoute(
+        path: '/je/home',
         builder: (_, __) => const JeHomeScreen(),
-        routes: [
-          GoRoute(
-            path: 'tickets/:ticketId',
-            builder: (_, state) => JeTicketDetailScreen(
-              ticketId: state.pathParameters['ticketId']!,
-            ),
-            routes: [
-              GoRoute(
-                path: 'checkin',
-                builder: (_, state) => JeCheckInScreen(
-                  ticketId: state.pathParameters['ticketId']!,
-                ),
-              ),
-              GoRoute(
-                path: 'measure',
-                builder: (_, state) => JeMeasureScreen(
-                  ticketId: state.pathParameters['ticketId']!,
-                ),
-              ),
-              GoRoute(
-                path: 'assign',
-                builder: (_, state) => JeAssignScreen(
-                  ticketId: state.pathParameters['ticketId']!,
-                ),
-              ),
-            ],
-          ),
-        ],
+      ),
+      GoRoute(
+        path: '/je/profile',
+        builder: (_, __) => const JeProfileScreen(),
+      ),
+      GoRoute(
+        path: '/je/ticket/:ticketId',
+        builder: (_, state) => JeTicketDetailScreen(
+          ticketId: state.pathParameters['ticketId']!,
+        ),
+      ),
+      GoRoute(
+        path: '/je/checkin/:ticketId',
+        builder: (_, state) => JeSiteCheckInScreen(
+          ticketId: state.pathParameters['ticketId']!,
+        ),
+      ),
+      GoRoute(
+        path: '/je/measure/:ticketId',
+        builder: (_, state) => JeMeasureEstimateScreen(
+          ticketId: state.pathParameters['ticketId']!,
+        ),
+      ),
+      GoRoute(
+        path: '/je/assign/:ticketId',
+        builder: (_, state) => JeExecutorAssignmentScreen(
+          ticketId: state.pathParameters['ticketId']!,
+        ),
+      ),
+      GoRoute(
+        path: '/mukadam/home',
+        builder: (_, __) => const MukadamHomeScreen(),
+      ),
+      GoRoute(
+        path: '/mukadam/detail/:ticketId',
+        builder: (_, state) => MukadamWorkOrderDetailScreen(
+          ticketId: state.pathParameters['ticketId']!,
+        ),
+      ),
+      GoRoute(
+        path: '/mukadam/inprogress/:ticketId',
+        builder: (_, state) => MukadamInProgressScreen(
+          ticketId: state.pathParameters['ticketId']!,
+        ),
+      ),
+      GoRoute(
+        path: '/mukadam/camera/:ticketId',
+        builder: (_, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          return MukadamProofCameraScreen(
+            ticketId: state.pathParameters['ticketId']!,
+            fieldNotes: extra?['fieldNotes'] as String?,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/mukadam/issue/:ticketId',
+        builder: (_, state) => MukadamIssueScreen(
+          ticketId: state.pathParameters['ticketId']!,
+        ),
+      ),
+      GoRoute(
+        path: '/mukadam/submitted',
+        builder: (_, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          final id = extra?['ticketId'] as String?;
+          final at = extra?['submittedAt'] as DateTime?;
+          if (id == null || at == null) {
+            return const Scaffold(
+              body: Center(child: Text('Missing submission details.')),
+            );
+          }
+          return MukadamSubmissionCompleteScreen(
+            ticketId: id,
+            submittedAt: at,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/mukadam/profile',
+        builder: (_, __) => const MukadamProfileScreen(),
       ),
       GoRoute(
         path: '/mukadam',
-        builder: (_, __) => const MukadamHomeScreen(),
-        routes: [
-          GoRoute(
-            path: 'jobs/:ticketId',
-            builder: (_, state) => MukadamJobScreen(
-              ticketId: state.pathParameters['ticketId']!,
-            ),
-            routes: [
-              GoRoute(
-                path: 'proof',
-                builder: (_, state) => ExecutionProofScreen(
-                  args: ExecutionProofArgs(
-                    ticketId: state.pathParameters['ticketId']!,
-                    roleLabel: 'Mukadam',
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
+        redirect: (_, __) => '/mukadam/home',
       ),
       GoRoute(
         path: '/contractor',

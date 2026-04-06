@@ -1,5 +1,6 @@
-/// Human labels for ticket status (Flutter Plan — do not invent alternates).
-const Map<String, String> kTicketStatusDisplay = {
+/// Human-readable ticket status labels (JE / shared). Do not change strings.
+// ignore: constant_identifier_names — spec requires STATUS_LABELS
+const Map<String, String> STATUS_LABELS = {
   'open': 'Received',
   'verified': 'Verified',
   'assigned': 'Repair Assigned',
@@ -8,18 +9,7 @@ const Map<String, String> kTicketStatusDisplay = {
   'resolved': 'Resolved',
   'rejected': 'Rejected',
   'escalated': 'Escalated',
-  'cross_assigned': 'Cross-assigned',
 };
 
-String ticketStatusLabel(String status) =>
-    kTicketStatusDisplay[status] ?? status;
-
-/// Ordered stepper path for citizen-facing tracker (main happy path).
-const List<String> kCitizenStatusOrder = [
-  'open',
-  'verified',
-  'assigned',
-  'in_progress',
-  'audit_pending',
-  'resolved',
-];
+String statusLabel(String status) =>
+    STATUS_LABELS[status] ?? status.replaceAll('_', ' ');

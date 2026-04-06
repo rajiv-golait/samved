@@ -8,6 +8,7 @@ class Profile {
     this.zoneId,
     required this.departmentId,
     this.isActive = true,
+    this.employeeId,
   });
 
   final String id;
@@ -18,6 +19,7 @@ class Profile {
   final int? zoneId;
   final int departmentId;
   final bool isActive;
+  final String? employeeId;
 
   factory Profile.fromJson(Map<String, dynamic> json) {
     return Profile(
@@ -29,6 +31,7 @@ class Profile {
       zoneId: json['zone_id'] as int?,
       departmentId: json['department_id'] as int? ?? 1,
       isActive: json['is_active'] as bool? ?? true,
+      employeeId: json['employee_id']?.toString(),
     );
   }
 }

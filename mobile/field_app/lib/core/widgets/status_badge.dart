@@ -40,7 +40,7 @@ class StatusBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        ticketStatusLabel(status),
+        statusLabel(status),
         style: TextStyle(
           fontSize: 11,
           letterSpacing: 0.2,

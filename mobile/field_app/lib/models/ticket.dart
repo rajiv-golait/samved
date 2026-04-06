@@ -43,6 +43,7 @@ class Ticket {
     this.resolvedAt,
     this.aiConfidence,
     this.aiSeverityIndex,
+    this.totalPotholes,
   });
 
   final String id;
@@ -86,6 +87,7 @@ class Ticket {
   final String? resolvedAt;
   final double? aiConfidence;
   final double? aiSeverityIndex;
+  final int? totalPotholes;
 
   String? get primaryBeforePhoto =>
       photoBefore.isNotEmpty ? photoBefore.first : null;
@@ -139,6 +141,7 @@ class Ticket {
       resolvedAt: json['resolved_at'] as String?,
       aiConfidence: (json['ai_confidence'] as num?)?.toDouble(),
       aiSeverityIndex: (json['ai_severity_index'] as num?)?.toDouble(),
+      totalPotholes: json['total_potholes'] as int?,
     );
   }
 }

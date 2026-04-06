@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/ticket.dart';
@@ -15,20 +17,28 @@ class ContractorOption {
   final String companyName;
 }
 
+class MukadamHomeSnapshot {
+  const MukadamHomeSnapshot({
+    required this.rows,
+    required this.jeNames,
+    required this.completedThisWeekCount,
+  });
+
+  final List<Map<String, dynamic>> rows;
+  final Map<String, String> jeNames;
+  final int completedThisWeekCount;
+
+  static MukadamHomeSnapshot empty() => const MukadamHomeSnapshot(
+        rows: [],
+        jeNames: {},
+        completedThisWeekCount: 0,
+      );
+}
+
 class TicketService {
   TicketService(this._client);
 
   final SupabaseClient _client;
-
-  static const _activeStatuses = [
-    'open',
-    'verified',
-    'assigned',
-    'in_progress',
-    'audit_pending',
-    'escalated',
-    'cross_assigned',
-  ];
 
   Future<List<Ticket>> fetchCitizenTickets() async {
     final uid = _client.auth.currentUser?.id;
@@ -46,27 +56,248 @@ class TicketService {
   Future<List<Ticket>> fetchJeZoneTickets(int zoneId) async {
     final rows = await _client
         .from('tickets')
-        .select()
+        .select(
+          'id, ticket_ref, status, severity_tier, latitude, longitude, address_text, '
+          'road_name, epdo_score, created_at, updated_at, zone_id, prabhag_id, '
+          'department_id, citizen_id, citizen_phone, citizen_name, source_channel, '
+          'photo_before, photo_after, assigned_je, assigned_contractor, assigned_mukadam, '
+          'je_checkin_time, dimensions, work_type, rate_card_id, rate_per_unit, '
+          'estimated_cost, job_order_ref, ai_confidence, total_potholes',
+        )
         .eq('zone_id', zoneId)
-        .order('updated_at', ascending: false);
-    final all = (rows as List<dynamic>)
-        .map((e) => Ticket.fromJson(Map<String, dynamic>.from(e as Map)))
-        .toList();
-    return all.where((t) => _activeStatuses.contains(t.status)).toList();
-  }
-
-  Future<List<Ticket>> fetchMukadamTickets() async {
-    final uid = _client.auth.currentUser?.id;
-    if (uid == null) return [];
-    final rows = await _client
-        .from('tickets')
-        .select()
-        .eq('assigned_mukadam', uid)
-        .inFilter('status', ['assigned', 'in_progress'])
-        .order('updated_at', ascending: false);
+        .not('status', 'in', '(resolved,rejected)')
+        .order('epdo_score', ascending: false);
     return (rows as List<dynamic>)
         .map((e) => Ticket.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList();
+  }
+
+  Future<List<Ticket>> fetchMukadamTickets() async {
+    final snap = await fetchMukadamHomeSnapshot();
+    return snap.rows
+        .map((e) => Ticket.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+  }
+
+  /// Mukadam work orders (dept gang only — no contractor assignment). No financial columns.
+  Future<MukadamHomeSnapshot> fetchMukadamHomeSnapshot() async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) return MukadamHomeSnapshot.empty();
+
+    const selectCols = '''
+id, ticket_ref, status, severity_tier, address_text, work_type, dimensions,
+created_at, updated_at, assigned_je, assigned_contractor, photo_before, je_checkin_time,
+zone_id, prabhag_id, latitude, longitude, department_id, source_channel,
+zones ( name ), prabhags ( name )
+''';
+
+    final raw = await _client
+        .from('tickets')
+        .select(selectCols)
+        .eq('assigned_mukadam', uid)
+        .inFilter('status', ['assigned', 'in_progress', 'audit_pending'])
+        .order('created_at', ascending: false);
+
+    final list = (raw as List<dynamic>)
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .where((m) => m['assigned_contractor'] == null)
+        .toList();
+
+    final jeIds = list
+        .map((m) => m['assigned_je'] as String?)
+        .whereType<String>()
+        .toSet()
+        .toList();
+
+    final jeNames = <String, String>{};
+    if (jeIds.isNotEmpty) {
+      final pr = await _client.from('profiles').select('id, full_name').inFilter('id', jeIds);
+      for (final p in pr as List<dynamic>) {
+        final m = Map<String, dynamic>.from(p as Map);
+        final id = m['id'] as String?;
+        if (id != null) {
+          jeNames[id] = m['full_name'] as String? ?? '';
+        }
+      }
+    }
+
+    final weekAgo =
+        DateTime.now().toUtc().subtract(const Duration(days: 7)).toIso8601String();
+    final weekRows = await _client
+        .from('tickets')
+        .select('id, assigned_contractor')
+        .eq('assigned_mukadam', uid)
+        .inFilter('status', ['audit_pending', 'resolved'])
+        .gte('updated_at', weekAgo);
+    final weekFiltered = (weekRows as List<dynamic>)
+        .where((e) => (e as Map<String, dynamic>)['assigned_contractor'] == null)
+        .length;
+
+    return MukadamHomeSnapshot(
+      rows: list,
+      jeNames: jeNames,
+      completedThisWeekCount: weekFiltered,
+    );
+  }
+
+  Future<int> countMukadamJobsThisWeek() async {
+    final snap = await fetchMukadamHomeSnapshot();
+    return snap.completedThisWeekCount;
+  }
+
+  /// Detail payload for Mukadam (no rate/cost/job_order fields).
+  Future<Map<String, dynamic>?> fetchMukadamTicketDetail(String ticketId) async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) return null;
+    const selectCols = '''
+id, ticket_ref, status, severity_tier, address_text, work_type, dimensions,
+photo_before, je_checkin_time, latitude, longitude, assigned_je, assigned_mukadam,
+assigned_contractor, created_at, updated_at,
+zones ( name ), prabhags ( name )
+''';
+    final row = await _client
+        .from('tickets')
+        .select(selectCols)
+        .eq('id', ticketId)
+        .eq('assigned_mukadam', uid)
+        .maybeSingle();
+    if (row == null) return null;
+    final m = Map<String, dynamic>.from(row);
+    if (m['assigned_contractor'] != null) return null;
+    return m;
+  }
+
+  Future<Map<String, dynamic>?> fetchProfileById(String profileId) async {
+    final row = await _client
+        .from('profiles')
+        .select('id, full_name, phone')
+        .eq('id', profileId)
+        .maybeSingle();
+    return row != null ? Map<String, dynamic>.from(row) : null;
+  }
+
+  Future<String?> fetchLatestJeCheckinNotes(String ticketId) async {
+    final rows = await _client
+        .from('ticket_events')
+        .select('notes, created_at')
+        .eq('ticket_id', ticketId)
+        .eq('event_type', 'je_checkin')
+        .order('created_at', ascending: false)
+        .limit(1);
+    final list = rows as List<dynamic>;
+    if (list.isEmpty) return null;
+    return list.first['notes'] as String?;
+  }
+
+  Future<int?> fetchSlaResolutionHours(String? severityTier) async {
+    if (severityTier == null || severityTier.isEmpty) return null;
+    final row = await _client
+        .from('sla_config')
+        .select('resolution_hours')
+        .eq('severity', severityTier)
+        .maybeSingle();
+    if (row == null) return null;
+    return (row['resolution_hours'] as num?)?.toInt();
+  }
+
+  Future<Map<String, dynamic>?> fetchMukadamTicketForCamera(String ticketId) async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) return null;
+    final row = await _client
+        .from('tickets')
+        .select('id, status, photo_before, assigned_mukadam, assigned_contractor')
+        .eq('id', ticketId)
+        .eq('assigned_mukadam', uid)
+        .maybeSingle();
+    if (row == null) return null;
+    final m = Map<String, dynamic>.from(row);
+    if (m['assigned_contractor'] != null) return null;
+    return m;
+  }
+
+  Future<void> mukadamStartGangDeployment({
+    required String ticketId,
+    required String mukadamFullName,
+  }) async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) throw StateError('Not signed in');
+
+    final detail = await fetchMukadamTicketDetail(ticketId);
+    if (detail == null) throw StateError('Ticket unavailable');
+    if (detail['status'] != 'assigned') {
+      throw StateError('Work order is not in Assigned state.');
+    }
+
+    await _client.from('tickets').update({
+      'status': 'in_progress',
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', ticketId);
+
+    await _client.from('ticket_events').insert({
+      'ticket_id': ticketId,
+      'actor_id': uid,
+      'actor_role': 'mukadam',
+      'event_type': 'status_change',
+      'old_status': 'assigned',
+      'new_status': 'in_progress',
+      'notes': 'Gang deployment started by Mukadam $mukadamFullName',
+      'metadata': {'started_at': DateTime.now().toUtc().toIso8601String()},
+    });
+  }
+
+  Future<String> mukadamUploadCompletionProof({
+    required String ticketId,
+    required Uint8List imageBytes,
+    String? fieldNotes,
+    required String mukadamFullName,
+  }) async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) throw StateError('Not signed in');
+
+    final cam = await fetchMukadamTicketForCamera(ticketId);
+    if (cam == null) throw StateError('Ticket unavailable');
+    if (cam['status'] != 'in_progress') {
+      throw StateError('Submit proof only while work is in progress.');
+    }
+
+    final name =
+        '${uid}_mukadam_${ticketId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final path = 'after/$name';
+    await _client.storage.from('after-photos').uploadBinary(
+          path,
+          imageBytes,
+          fileOptions: const FileOptions(
+            upsert: true,
+            contentType: 'image/jpeg',
+          ),
+        );
+    final photoUrl = _client.storage.from('after-photos').getPublicUrl(path);
+
+    await _client.from('tickets').update({
+      'photo_after': photoUrl,
+      'status': 'audit_pending',
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', ticketId);
+
+    final note = fieldNotes != null && fieldNotes.trim().isNotEmpty
+        ? fieldNotes.trim()
+        : 'Completion proof submitted by Mukadam';
+
+    await _client.from('ticket_events').insert({
+      'ticket_id': ticketId,
+      'actor_id': uid,
+      'actor_role': 'mukadam',
+      'event_type': 'photo_upload',
+      'old_status': 'in_progress',
+      'new_status': 'audit_pending',
+      'notes': note,
+      'metadata': {
+        'submitted_by': mukadamFullName,
+        'photo_url': photoUrl,
+      },
+    });
+
+    return photoUrl;
   }
 
   Future<List<Ticket>> fetchContractorTickets() async {

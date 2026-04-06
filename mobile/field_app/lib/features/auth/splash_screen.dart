@@ -71,10 +71,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         context.go('/citizen/home');
         break;
       case 'je':
-        context.go('/je');
+        context.go('/je/home');
         break;
       case 'mukadam':
-        context.go('/mukadam');
+        context.go('/mukadam/home');
         break;
       case 'contractor':
         context.go('/contractor');

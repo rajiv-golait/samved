@@ -90,7 +90,7 @@ class ContractorJobScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 16),
               Text(
-                'Status: ${ticketStatusLabel(ticket.status)}',
+                'Status: ${statusLabel(ticket.status)}',
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
               if (ticket.addressText != null) Text(ticket.addressText!),

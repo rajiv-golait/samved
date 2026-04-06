@@ -90,6 +90,7 @@ class _ExecutionProofScreenState extends ConsumerState<ExecutionProofScreen> {
           );
       if (!mounted) return;
       ref.invalidate(ticketDetailProvider(widget.args.ticketId));
+      ref.invalidate(mukadamHomeProvider);
       ref.invalidate(mukadamInboxProvider);
       ref.invalidate(contractorInboxProvider);
       context.pop();
