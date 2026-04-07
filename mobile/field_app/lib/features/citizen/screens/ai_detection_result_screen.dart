@@ -11,6 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/citizen_design.dart';
 import '../../../providers/citizen_providers.dart';
 import '../../../providers/providers.dart';
+import '../../../providers/ticket_providers.dart';
 import '../../../services/citizen_ai_service.dart';
 
 class AIDetectionResultScreen extends ConsumerStatefulWidget {
@@ -37,6 +38,7 @@ class _AIDetectionResultScreenState extends ConsumerState<AIDetectionResultScree
 
   bool _loading = true;
   String? _loadError;
+  String? _aiError;
   String? _photoPublicUrl;
   DetectOutcome? _detect;
   SeverityOutcome? _severity;
@@ -79,9 +81,11 @@ class _AIDetectionResultScreenState extends ConsumerState<AIDetectionResultScree
       try {
         det = await ai.detectRoadDamage(url);
         if (!det.success || det.errors.isNotEmpty) {
+          _aiError = det.errors.join('\n');
           det = DetectOutcome(success: false, errors: det.errors);
         }
       } catch (_) {
+        _aiError = 'Detection unreachable';
         det = const DetectOutcome(success: false, errors: ['Detection unreachable']);
       }
 
@@ -99,6 +103,8 @@ class _AIDetectionResultScreenState extends ConsumerState<AIDetectionResultScree
             lng: widget.gpsPosition.longitude,
           );
           if (!sev.success) {
+            _aiError =
+                sev.errors.isNotEmpty ? sev.errors.join('\n') : 'Severity unreachable';
             sev = const SeverityOutcome(success: false, errors: ['Severity unreachable']);
           }
         } else {
@@ -110,6 +116,7 @@ class _AIDetectionResultScreenState extends ConsumerState<AIDetectionResultScree
           );
         }
       } catch (_) {
+        _aiError = 'Severity unreachable';
         sev = const SeverityOutcome(success: false, errors: ['Severity unreachable']);
       }
 
@@ -207,6 +214,9 @@ class _AIDetectionResultScreenState extends ConsumerState<AIDetectionResultScree
       final result = await client.from('tickets').insert(payload).select().single();
 
       if (mounted) {
+        // Ensure the lists refresh even before realtime callback.
+        ref.invalidate(citizenTicketsProvider);
+        ref.invalidate(jeInboxProvider);
         context.push('/citizen/confirmation', extra: Map<String, dynamic>.from(result));
       }
     } catch (e) {
@@ -312,6 +322,25 @@ class _AIDetectionResultScreenState extends ConsumerState<AIDetectionResultScree
                           controller: scrollController,
                           padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                           children: [
+                            if (_aiError != null && _aiError!.isNotEmpty) ...[
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: CitizenDesign.error.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Text(
+                                  'AI service issue:\n$_aiError\n\nYou can still submit a report, but detection may show zeros.',
+                                  style: GoogleFonts.inter(
+                                    color: CitizenDesign.error,
+                                    fontSize: 12,
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                            ],
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [

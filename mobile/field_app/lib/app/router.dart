@@ -19,8 +19,13 @@ import '../features/citizen/screens/my_complaints_screen.dart';
 import '../features/citizen/screens/profile_screen.dart';
 import '../features/citizen/screens/report_damage_screen.dart';
 import '../features/citizen/screens/submission_confirmation_screen.dart';
-import '../features/contractor/contractor_home_screen.dart';
-import '../features/contractor/contractor_job_screen.dart';
+import '../features/contractor/screens/contractor_home_screen.dart';
+import '../features/contractor/screens/contractor_job_detail_screen.dart';
+import '../features/contractor/screens/contractor_in_progress_screen.dart';
+import '../features/contractor/screens/contractor_ghost_camera_screen.dart';
+import '../features/contractor/screens/contractor_issue_screen.dart';
+import '../features/contractor/screens/contractor_submission_complete_screen.dart';
+import '../features/contractor/screens/contractor_profile_screen.dart';
 import '../features/handoff/web_handoff_screen.dart';
 import '../features/je/screens/je_executor_assignment_screen.dart';
 import '../features/je/screens/je_home_screen.dart';
@@ -35,7 +40,6 @@ import '../features/mukadam/screens/mukadam_proof_camera_screen.dart';
 import '../features/mukadam/screens/mukadam_issue_screen.dart';
 import '../features/mukadam/screens/mukadam_submission_complete_screen.dart';
 import '../features/mukadam/screens/mukadam_profile_screen.dart';
-import '../features/shared/execution_proof_screen.dart';
 import 'router_refresh.dart';
 
 final goRouterProvider = Provider<GoRouter>((ref) {
@@ -130,12 +134,45 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: '/citizen/ai-result',
         builder: (context, state) {
           final extra = state.extra as Map<String, dynamic>?;
-          if (extra == null) {
-            return const Scaffold(body: Center(child: Text('Missing capture data.')));
+          File? imageFile;
+          Position? gpsPosition;
+          if (extra != null) {
+            imageFile = extra['imageFile'] as File?;
+            gpsPosition = extra['gpsPosition'] as Position?;
+          }
+
+          // Fallback for route restoration / app resume where `extra` may be dropped.
+          if (imageFile == null || gpsPosition == null) {
+            final qp = state.uri.queryParameters;
+            final path = qp['path'];
+            final lat = double.tryParse(qp['lat'] ?? '');
+            final lng = double.tryParse(qp['lng'] ?? '');
+            if (path != null && lat != null && lng != null) {
+              final decodedPath = Uri.decodeComponent(path);
+              imageFile = File(decodedPath);
+              gpsPosition = Position(
+                longitude: lng,
+                latitude: lat,
+                timestamp: DateTime.now(),
+                accuracy: 0,
+                altitude: 0,
+                altitudeAccuracy: 0,
+                heading: 0,
+                headingAccuracy: 0,
+                speed: 0,
+                speedAccuracy: 0,
+              );
+            }
+          }
+
+          if (imageFile == null || gpsPosition == null) {
+            return const Scaffold(
+              body: Center(child: Text('Missing capture data. Please retake photo.')),
+            );
           }
           return AIDetectionResultScreen(
-            imageFile: extra['imageFile'] as File,
-            gpsPosition: extra['gpsPosition'] as Position,
+            imageFile: imageFile,
+            gpsPosition: gpsPosition,
           );
         },
       ),
@@ -260,29 +297,44 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: '/mukadam',
         redirect: (_, __) => '/mukadam/home',
       ),
+      GoRoute(path: '/contractor/home', builder: (_, __) => const ContractorHomeScreen()),
       GoRoute(
-        path: '/contractor',
-        builder: (_, __) => const ContractorHomeScreen(),
-        routes: [
-          GoRoute(
-            path: 'jobs/:ticketId',
-            builder: (_, state) => ContractorJobScreen(
-              ticketId: state.pathParameters['ticketId']!,
-            ),
-            routes: [
-              GoRoute(
-                path: 'proof',
-                builder: (_, state) => ExecutionProofScreen(
-                  args: ExecutionProofArgs(
-                    ticketId: state.pathParameters['ticketId']!,
-                    roleLabel: 'Contractor',
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
+        path: '/contractor/detail/:ticketId',
+        builder: (_, state) => ContractorJobDetailScreen(ticketId: state.pathParameters['ticketId']!),
       ),
+      GoRoute(
+        path: '/contractor/inprogress/:ticketId',
+        builder: (_, state) => ContractorInProgressScreen(ticketId: state.pathParameters['ticketId']!),
+      ),
+      GoRoute(
+        path: '/contractor/camera/:ticketId',
+        builder: (_, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          return ContractorGhostCameraScreen(
+            ticketId: state.pathParameters['ticketId']!,
+            fieldNotes: extra?['fieldNotes'] as String?,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/contractor/issue/:ticketId',
+        builder: (_, state) => ContractorIssueScreen(ticketId: state.pathParameters['ticketId']!),
+      ),
+      GoRoute(
+        path: '/contractor/submitted',
+        builder: (_, state) {
+          final extra = state.extra as Map<String, dynamic>?;
+          final id = extra?['ticketId'] as String?;
+          final hash = extra?['hash'] as String?;
+          final at = extra?['submittedAt'] as DateTime?;
+          if (id == null || hash == null || at == null) {
+            return const Scaffold(body: Center(child: Text('Missing submission details.')));
+          }
+          return ContractorSubmissionCompleteScreen(ticketId: id, hash: hash, submittedAt: at);
+        },
+      ),
+      GoRoute(path: '/contractor/profile', builder: (_, __) => const ContractorProfileScreen()),
+      GoRoute(path: '/contractor', redirect: (_, __) => '/contractor/home'),
     ],
   );
 });

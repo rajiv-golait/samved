@@ -172,7 +172,10 @@ class _ReportDamageScreenState extends ConsumerState<ReportDamageScreen> {
       final file = await c.takePicture();
       final imageFile = File(file.path);
       if (!mounted) return;
-      context.push('/citizen/ai-result', extra: {
+      final path = Uri.encodeComponent(imageFile.path);
+      final lat = _gps!.latitude.toStringAsFixed(7);
+      final lng = _gps!.longitude.toStringAsFixed(7);
+      context.push('/citizen/ai-result?path=$path&lat=$lat&lng=$lng', extra: {
         'imageFile': imageFile,
         'gpsPosition': _gps!,
       });

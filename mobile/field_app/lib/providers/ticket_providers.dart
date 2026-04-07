@@ -38,3 +38,8 @@ final mukadamInboxProvider =
 final contractorInboxProvider = FutureProvider.autoDispose<List<Ticket>>((ref) {
   return ref.watch(ticketServiceProvider).fetchContractorTickets();
 });
+
+final contractorHomeProvider =
+    FutureProvider.autoDispose<ContractorHomeSnapshot>((ref) {
+  return ref.watch(ticketServiceProvider).fetchContractorHomeSnapshot();
+});

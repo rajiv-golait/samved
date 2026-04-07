@@ -44,6 +44,7 @@ class _TicketsRealtimeScopeState extends ConsumerState<TicketsRealtimeScope> {
             ref.invalidate(jeInboxProvider);
             ref.invalidate(mukadamHomeProvider);
             ref.invalidate(mukadamInboxProvider);
+            ref.invalidate(contractorHomeProvider);
             ref.invalidate(contractorInboxProvider);
             ref.invalidate(profileProvider);
           },

@@ -35,6 +35,27 @@ class MukadamHomeSnapshot {
       );
 }
 
+class ContractorHomeSnapshot {
+  const ContractorHomeSnapshot({
+    required this.rows,
+    required this.jeNames,
+    required this.pendingAmount,
+    required this.pendingCount,
+  });
+
+  final List<Map<String, dynamic>> rows;
+  final Map<String, String> jeNames;
+  final double pendingAmount;
+  final int pendingCount;
+
+  static ContractorHomeSnapshot empty() => const ContractorHomeSnapshot(
+        rows: [],
+        jeNames: {},
+        pendingAmount: 0,
+        pendingCount: 0,
+      );
+}
+
 class TicketService {
   TicketService(this._client);
 
@@ -301,16 +322,176 @@ zones ( name ), prabhags ( name )
   }
 
   Future<List<Ticket>> fetchContractorTickets() async {
+    final snap = await fetchContractorHomeSnapshot();
+    return snap.rows
+        .map((e) => Ticket.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+  }
+
+  Future<ContractorHomeSnapshot> fetchContractorHomeSnapshot() async {
     final uid = _client.auth.currentUser?.id;
-    if (uid == null) return [];
-    final rows = await _client
+    if (uid == null) return ContractorHomeSnapshot.empty();
+
+    const selectCols = '''
+id, ticket_ref, status, severity_tier, address_text, road_name, work_type, dimensions,
+estimated_cost, rate_per_unit, job_order_ref, created_at, updated_at, assigned_je,
+assigned_mukadam, assigned_contractor, zone_id, prabhag_id,
+zones ( name ), prabhags ( name )
+''';
+
+    final raw = await _client
         .from('tickets')
-        .select()
+        .select(selectCols)
         .eq('assigned_contractor', uid)
-        .inFilter('status', ['assigned', 'in_progress'])
-        .order('updated_at', ascending: false);
+        .inFilter('status', ['assigned', 'in_progress', 'audit_pending', 'resolved'])
+        .order('created_at', ascending: false);
+
+    final rows = (raw as List<dynamic>)
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .where((m) => m['assigned_mukadam'] == null)
+        .toList();
+
+    final jeIds = rows
+        .map((m) => m['assigned_je'] as String?)
+        .whereType<String>()
+        .toSet()
+        .toList();
+    final jeNames = <String, String>{};
+    if (jeIds.isNotEmpty) {
+      final prs =
+          await _client.from('profiles').select('id, full_name').inFilter('id', jeIds);
+      for (final p in prs as List<dynamic>) {
+        final m = Map<String, dynamic>.from(p as Map);
+        final id = m['id'] as String?;
+        if (id != null) {
+          jeNames[id] = m['full_name'] as String? ?? '';
+        }
+      }
+    }
+
+    double pendingAmount = 0;
+    int pendingCount = 0;
+    for (final row in rows) {
+      if (row['status'] == 'audit_pending') {
+        pendingCount += 1;
+        pendingAmount += (row['estimated_cost'] as num?)?.toDouble() ?? 0;
+      }
+    }
+
+    return ContractorHomeSnapshot(
+      rows: rows,
+      jeNames: jeNames,
+      pendingAmount: pendingAmount,
+      pendingCount: pendingCount,
+    );
+  }
+
+  Future<Map<String, dynamic>?> fetchContractorTicketDetail(String ticketId) async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) return null;
+    const selectCols = '''
+id, ticket_ref, status, severity_tier, address_text, road_name, work_type, dimensions,
+estimated_cost, rate_per_unit, job_order_ref, created_at, updated_at, assigned_je,
+assigned_mukadam, assigned_contractor, photo_before, photo_after, verification_hash,
+ssim_score, ssim_pass, latitude, longitude,
+zones ( name ), prabhags ( name ),
+je:profiles!tickets_assigned_je_fkey ( id, full_name, phone )
+''';
+    final row = await _client
+        .from('tickets')
+        .select(selectCols)
+        .eq('id', ticketId)
+        .eq('assigned_contractor', uid)
+        .maybeSingle();
+    if (row == null) return null;
+    final m = Map<String, dynamic>.from(row);
+    if (m['assigned_mukadam'] != null) return null;
+    return m;
+  }
+
+  Future<void> contractorStartWork({
+    required String ticketId,
+    required String companyName,
+  }) async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) throw StateError('Not signed in');
+    final detail = await fetchContractorTicketDetail(ticketId);
+    if (detail == null) throw StateError('Ticket unavailable');
+    if (detail['status'] != 'assigned') {
+      throw StateError('Only assigned work orders can be started.');
+    }
+    final now = DateTime.now().toUtc().toIso8601String();
+    await _client.from('tickets').update({
+      'status': 'in_progress',
+      'updated_at': now,
+    }).eq('id', ticketId);
+    await _client.from('ticket_events').insert({
+      'ticket_id': ticketId,
+      'actor_id': uid,
+      'actor_role': 'contractor',
+      'event_type': 'status_change',
+      'old_status': 'assigned',
+      'new_status': 'in_progress',
+      'notes': 'Work started by contractor $companyName',
+      'metadata': {'started_at': now},
+    });
+  }
+
+  Future<(String photoUrl, String hash)> contractorUploadProof({
+    required String ticketId,
+    required Uint8List imageBytes,
+    required String hash,
+  }) async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) throw StateError('Not signed in');
+    final detail = await fetchContractorTicketDetail(ticketId);
+    if (detail == null) throw StateError('Ticket unavailable');
+    if (detail['status'] != 'in_progress') {
+      throw StateError('Submit proof only while job is in progress.');
+    }
+    final path = 'after/${uid}_${ticketId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    await _client.storage.from('after-photos').uploadBinary(
+          path,
+          imageBytes,
+          fileOptions: const FileOptions(upsert: true, contentType: 'image/jpeg'),
+        );
+    final photoUrl = _client.storage.from('after-photos').getPublicUrl(path);
+    await _client.from('tickets').update({
+      'photo_after': photoUrl,
+      'status': 'audit_pending',
+      'verification_hash': hash,
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', ticketId);
+    await _client.from('ticket_events').insert({
+      'ticket_id': ticketId,
+      'actor_id': uid,
+      'actor_role': 'contractor',
+      'event_type': 'photo_upload',
+      'old_status': 'in_progress',
+      'new_status': 'audit_pending',
+      'notes': 'Proof of repair submitted by contractor. SHA-256: ${hash.substring(0, 16)}...',
+      'metadata': {'photo_url': photoUrl, 'verification_hash': hash},
+    });
+    return (photoUrl, hash);
+  }
+
+  Future<Map<String, dynamic>?> fetchContractorProfile() async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) return null;
+    final row = await _client
+        .from('contractors')
+        .select(
+            'id, company_name, gst_number, pan_number, zone_ids, contract_number, contract_start, contract_end, is_blacklisted, profiles!contractors_id_fkey(full_name, phone)')
+        .eq('id', uid)
+        .maybeSingle();
+    return row == null ? null : Map<String, dynamic>.from(row);
+  }
+
+  Future<List<Map<String, dynamic>>> fetchZonesByIds(List<int> zoneIds) async {
+    if (zoneIds.isEmpty) return [];
+    final rows = await _client.from('zones').select('id, name').inFilter('id', zoneIds);
     return (rows as List<dynamic>)
-        .map((e) => Ticket.fromJson(Map<String, dynamic>.from(e as Map)))
+        .map((e) => Map<String, dynamic>.from(e as Map))
         .toList();
   }
 

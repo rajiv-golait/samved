@@ -77,7 +77,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         context.go('/mukadam/home');
         break;
       case 'contractor':
-        context.go('/contractor');
+        context.go('/contractor/home');
         break;
       default:
         context.go('/blocked', extra: 'Unsupported role.');
