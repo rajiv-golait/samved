@@ -4,6 +4,9 @@ Stateless internal microservice. Called only by Supabase Edge Functions.
 Never writes to DB. Returns evidence; Edge Functions own all state transitions.
 """
 
+import sys
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 import time
 from contextlib import asynccontextmanager
 
